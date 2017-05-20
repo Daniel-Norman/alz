@@ -1,0 +1,11 @@
+Performs preprocessing on the patient's MRI.
+
+First register using
+`wm_register.sh [FLAIR atlas file] [WM atlas file] [input data folder] [output folder]`
+to receive versions of the white matter atlas file, each registered to an input MRI's image space.
+
+Then use the registered WM files to mask each input MRI using
+`python wm_mask.py [threshold, between 0 to 1] [registered wm file] [input MRI file] [output file]`
+
+This output should have the non-white matter masked away (including skull), leaving just WM regions.
+These can now be run through lesion detection.
