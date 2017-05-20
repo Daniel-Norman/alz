@@ -8,8 +8,6 @@ if len(sys.argv) != 5:
   
 threshold = float(sys.argv[1])
 
-# Arg1: pre-registered WM atlas file
-# Arg2: MRI file that we will be masking using the atlas
 wm_atlas = nib.load(sys.argv[2])
 wm_atlas_data = wm_atlas.get_data()
 mri = nib.load(sys.argv[3])
