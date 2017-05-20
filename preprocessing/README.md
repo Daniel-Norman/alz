@@ -1,4 +1,4 @@
-Performs preprocessing on the patient's MRI.
+Performs preprocessing on the patient's MRI. Requires [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FSL) installed.
 
 First register using
 
