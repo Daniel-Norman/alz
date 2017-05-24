@@ -48,6 +48,8 @@ for k in xrange(mri_shape[2]):
   try:
     thresh = threshold_otsu(image)
   except ValueError:
+    # Thrown if the image is all one color (i.e. all black background).
+    # If so, ignore this slice.
     continue
 
   bw = closing(image > thresh, square(3))
