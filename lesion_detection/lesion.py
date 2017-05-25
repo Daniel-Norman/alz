@@ -1,115 +1,135 @@
 import sys
 import nibabel as nib
 import numpy as np
-#import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import csv
 
-
+from scipy.ndimage.filters import gaussian_filter1d
 from skimage.filters import threshold_otsu
 from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square
-from skimage.feature import blob_doh
 
-if len(sys.argv) != 3:
-  print 'Expects 2 arguments: preprocessed_file output_file'
-  quit()
+if len(sys.argv) != 4:
+    print 'Expects 2 arguments: preprocessed_image output_image output_csv'
+    quit()
+
+should_plot = False
 
 mri = nib.load(sys.argv[1])
 mri_data = mri.get_data()
-mri_shape = mri_data.shape
+
+# Perform a horizontal blur of each slice, to get rid of thin vertical lines
+mri_data_blur = gaussian_filter1d(mri_data, sigma=1, axis=0)
 
 
 # Keep only voxels with intensity greater than mean + 2*stddev (ignoring background voxels during calculation)
-intensities = []
-for i in xrange(mri_shape[0]):
-  for j in xrange(mri_shape[1]):
-    for k in xrange(mri_shape[2]):
-      if mri_data[i][j][k] != 0:
-        intensities.append(mri_data[i][j][k])
 
-mean = np.mean(intensities)
-std = np.std(intensities)
-threshold_lesion = mean + 2*std
-
-for i in xrange(mri_shape[0]):
-  for j in xrange(mri_shape[1]):
-    for k in xrange(mri_shape[2]):
-      if mri_data[i][j][k] < threshold_lesion:
-        mri_data[i][j][k] = 0
-
-
-# Find lesions using image segmentation and labeling, along with blob detection
-
-for k in xrange(mri_shape[2]):
-  image = mri_data[:, :, k].copy(order='C')  # Copy is needed for blob detection
-
-  # Perform image segmentation/labeling
-  try:
-    thresh = threshold_otsu(image)
-  except ValueError:
-    # Thrown if the image is all one color (i.e. all black background).
-    # If so, ignore this slice.
-    continue
-
-  bw = closing(image > thresh, square(3))
-  cleared = clear_border(bw)
-  label_image = label(cleared)
-
-  # Zero out this slice's image. Lesion pixels will be written back as 1.
-  mri_data[:, :, k] = 0
+def threshold(scan):
+    intensities = []
+    for i in xrange(scan.shape[0]):
+        for j in xrange(scan.shape[1]):
+            for k in xrange(scan.shape[2]):
+                if scan[i][j][k] != 0:
+                    intensities.append(scan[i][j][k])
+    mean = np.mean(intensities)
+    std = np.std(intensities)
+    threshold_lesion = mean + 2 * std
+    for i in xrange(scan.shape[0]):
+        for j in xrange(scan.shape[1]):
+            for k in xrange(scan.shape[2]):
+                if scan[i][j][k] < threshold_lesion:
+                    scan[i][j][k] = 0
 
 
-  # Perform blob detection to detect lesions that may have a thin "tail"
-  # coming off them that otsu thresholding + region.extent thresholding would
-  # throw out.
+# TODO fine tune constants
+def could_region_be_lesion(reg):
+    min_r, min_c, max_r, max_c = reg.bbox
+    w = max_r - min_r
+    h = max_c - min_c
+    return w < 2 * h and h < 2 * w and reg.extent > 0.3
 
-  # TODO: Figure out why blob detection is returning no blobs
-  # blobs = blob_doh(image)
+# Threshold original image
+threshold(mri_data)
+threshold(mri_data_blur)
 
-  # TODO: Remove plotting part of code after figuring out blob detection
+lesions = []
 
-  # fig, ax = plt.subplots(figsize=(10, 6))
-  # ax.imshow(image)
+# Find lesions using image segmentation and labeling
+for k in xrange(mri_data.shape[2]):
+    image = mri_data[:, :, k]
+    image_blur = mri_data_blur[:, :, k]
 
-  for region in regionprops(label_image):
-    minr, minc, maxr, maxc = region.bbox
-    width = maxr - minr
-    height = maxc - minc
-    # TODO: fine tune constants in this, like 20 and 0.3...
-    if region.area > 20:
-      is_lesion = False
-      # Keep only regions that are mostly square (not too thin/tall) and
-      # are mostly filled with pixels (using extent, aka pixels/bounding_box_area)
-      if width < 2 * height and height < 2 * width and region.extent > 0.3:
-        is_lesion = True
-      # else:
-      #   r,c = region.centroid
-      #   blob_radius = 0
-      #   for blob in blobs:
-      #     y,x,sigma = blob
-      #     if np.sqrt((r-y)**2+(c-x)**2) < 20 and sigma > blob_radius:
-      #       blob_radius = sigma
-      #   if blob_radius > 10:
-      #     is_lesion = True
-      #     minc = x-blob_radius
-      #     maxc = x+blob_radius
-      #     minr = y-blob_radius
-      #     maxr = y+blob_radius
+    # TODO: Remove plotting part of code after done fine tuning
+    if should_plot:
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.set_axis_off()
+        plt.tight_layout()
+        ax.imshow(image)
 
-      if is_lesion:
-        # rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr, fill=False, edgecolor='red', linewidth=2)
-        # ax.add_patch(rect)
-        for row,col in region.coords:
-          mri_data[row, col, k] = 1
-        # TODO: export lesion coodinates as CSV for use in determining where to peform LBP
-        print 'Lesion at slice %s, bounding box %s' % (k, region.bbox)
-  # ax.set_axis_off()
-  # plt.tight_layout()
-  # plt.show()
+    # Perform image segmentation/labeling
+    try:
+        bw_image = closing(image > threshold_otsu(image), square(3))
+        label_image = label(clear_border(bw_image))
 
+        bw_image_blur = closing(image_blur > threshold_otsu(image_blur), square(3))
+        label_image_blur = label(clear_border(bw_image_blur))
+    except ValueError:
+        # Thrown if the image is all one color (i.e. all black background).
+        # If so, ignore this slice.
+        continue
 
-print 'Mean: %s\nStd: %s' % (mean, std)
+    # Zero out this slice's image. Lesion pixels will be written back as 1.
+    mri_data[:, :, k] = 0
+    mri_data_blur[:, :, k] = 0
+
+    for region in regionprops(label_image):
+        bbox = region.bbox
+        minr, minc, maxr, maxc = bbox
+        centroid = region.centroid
+        width = maxr - minr
+        height = maxc - minc
+        is_lesion = 0
+        # TODO: fine tune constants
+        if region.area > 20:
+            if could_region_be_lesion(region):
+                is_lesion = 1
+            else:
+                # If the region in original image was thought to not be a lesion, double check with the blurred
+                # version. The blurred image's lesions may like this specific region, because blurring gets
+                # rid of thin vertical lines that would otherwise make the region's "extent" too low.
+                for region_blur in regionprops(label_image_blur):
+                    centroid_blur = region_blur.centroid
+                    centroid_distance = (centroid[0]-centroid_blur[0])**2+(centroid[1]-centroid_blur[1])**2
+                    if region_blur.area > 20 and could_region_be_lesion(region_blur) and centroid_distance < 40:
+                        region = region_blur
+                        bbox = region_blur.bbox
+                        is_lesion = 2
+                        break
+
+            if is_lesion != 0:
+                # TODO: remove plotting
+                if should_plot:
+                    minr, minc, maxr, maxc = bbox
+                    rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
+                                              fill=False,
+                                              edgecolor=('red' if is_lesion == 1 else 'green'),
+                                              linewidth=2)
+                    ax.add_patch(rect)
+
+                for row, col in region.coords:
+                    mri_data[row, col, k] = 1
+                lesions.append([k, int(bbox[0]), int(bbox[1]), int(bbox[2]), int(bbox[3])])
+
+    if should_plot:
+        plt.show()
+
+with open(sys.argv[3], 'wb') as lesion_csv:
+    csv_writer = csv.writer(lesion_csv)
+    for lesion in lesions:
+        csv_writer.writerow(lesion)
+
 extracted_mri = nib.Nifti1Image(mri_data, [[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
 nib.save(extracted_mri, sys.argv[2])
-print 'Saved as %s' % sys.argv[2]
+print 'Saved image as %s and CSV as %s.' % (sys.argv[2], sys.argv[3])
