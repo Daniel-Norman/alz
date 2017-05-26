@@ -18,16 +18,18 @@ BLUR_STRENGTH = 1
 LESION_HW_RATIO = 2
 # minimum percent of a region's filled pixels / bounding box area to be a lesion
 LESION_MIN_EXTENT = 0.3
-# Ratio of lesion area to total slice area, to filter out small areas that are likely not a lesion
+# Ratio of lesion area to total slice area, to filter out small regions that are likely not a lesion
 LESION_MIN_AREA_RATIO = 20.0 / (256*256)
-# Maximum distance between the centroids of some region in original and region in blur, to group them as the same region
-BLUR_SAME_REGION_DISTANCE_RATIO = 7.0 / 256
+# Overlap percent needed for centroids of region areas in original and blur image to be considered the same region.
+# E.g. same region if: distance(centroidA, centroidB) < overlap_percent * sqrt(region_area)
+BLUR_SAME_REGION_OVERLAP = 0.50
 
 if len(sys.argv) != 4:
     print 'Expects 2 arguments: preprocessed_image output_image output_csv'
     quit()
 
-should_plot = False
+# TODO: Remove plotting part of code after done fine tuning
+should_plot = True
 
 mri = nib.load(sys.argv[1])
 mri_data = mri.get_data()
@@ -73,7 +75,6 @@ for k in xrange(mri_data.shape[2]):
     image = mri_data[:, :, k]
     image_blur = mri_data_blur[:, :, k]
 
-    # TODO: Remove plotting part of code after done fine tuning
     if should_plot:
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.set_axis_off()
@@ -115,14 +116,13 @@ for k in xrange(mri_data.shape[2]):
                     centroid_distance = np.sqrt((centroid[0]-centroid_blur[0])**2+(centroid[1]-centroid_blur[1])**2)
                     if region_blur.area > (LESION_MIN_AREA_RATIO*slice_area)\
                             and could_region_be_lesion(region_blur)\
-                            and centroid_distance < (BLUR_SAME_REGION_DISTANCE_RATIO*slice_length):
+                            and centroid_distance < BLUR_SAME_REGION_OVERLAP*np.sqrt(region.area):
                         region = region_blur
                         bbox = region_blur.bbox
                         is_lesion = 2
                         break
 
             if is_lesion != 0:
-                # TODO: remove plotting
                 if should_plot:
                     minr, minc, maxr, maxc = bbox
                     rect = mpatches.Rectangle((minc, minr), maxc - minc, maxr - minr,
