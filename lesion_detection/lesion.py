@@ -11,6 +11,18 @@ from skimage.segmentation import clear_border
 from skimage.measure import label, regionprops
 from skimage.morphology import closing, square
 
+# TODO fine tune constants
+# sigma used in blurred image
+BLUR_STRENGTH = 1
+# max ratio of either height/width or width/height for a region to be a lesion
+LESION_HW_RATIO = 2
+# minimum percent of a region's filled pixels / bounding box area to be a lesion
+LESION_MIN_EXTENT = 0.3
+# Ratio of lesion area to total slice area, to filter out small areas that are likely not a lesion
+LESION_MIN_AREA_RATIO = 20.0 / (256*256)
+# Maximum distance between the centroids of some region in original and region in blur, to group them as the same region
+BLUR_SAME_REGION_DISTANCE_RATIO = 7.0 / 256
+
 if len(sys.argv) != 4:
     print 'Expects 2 arguments: preprocessed_image output_image output_csv'
     quit()
@@ -19,13 +31,14 @@ should_plot = False
 
 mri = nib.load(sys.argv[1])
 mri_data = mri.get_data()
+slice_length = mri_data.shape[0]
+slice_area = mri_data.shape[0]*mri.shape[1]
 
 # Perform a horizontal blur of each slice, to get rid of thin vertical lines
-mri_data_blur = gaussian_filter1d(mri_data, sigma=1, axis=0)
+mri_data_blur = gaussian_filter1d(mri_data, sigma=BLUR_STRENGTH, axis=0)
 
 
 # Keep only voxels with intensity greater than mean + 2*stddev (ignoring background voxels during calculation)
-
 def threshold(scan):
     intensities = []
     for i in xrange(scan.shape[0]):
@@ -43,12 +56,11 @@ def threshold(scan):
                     scan[i][j][k] = 0
 
 
-# TODO fine tune constants
 def could_region_be_lesion(reg):
     min_r, min_c, max_r, max_c = reg.bbox
     w = max_r - min_r
     h = max_c - min_c
-    return w < 2 * h and h < 2 * w and reg.extent > 0.3
+    return w < LESION_HW_RATIO * h and h < LESION_HW_RATIO * w and reg.extent > LESION_MIN_EXTENT
 
 # Threshold original image
 threshold(mri_data)
@@ -91,8 +103,7 @@ for k in xrange(mri_data.shape[2]):
         width = maxr - minr
         height = maxc - minc
         is_lesion = 0
-        # TODO: fine tune constants
-        if region.area > 20:
+        if region.area > (LESION_MIN_AREA_RATIO*slice_area):
             if could_region_be_lesion(region):
                 is_lesion = 1
             else:
@@ -101,8 +112,10 @@ for k in xrange(mri_data.shape[2]):
                 # rid of thin vertical lines that would otherwise make the region's "extent" too low.
                 for region_blur in regionprops(label_image_blur):
                     centroid_blur = region_blur.centroid
-                    centroid_distance = (centroid[0]-centroid_blur[0])**2+(centroid[1]-centroid_blur[1])**2
-                    if region_blur.area > 20 and could_region_be_lesion(region_blur) and centroid_distance < 40:
+                    centroid_distance = np.sqrt((centroid[0]-centroid_blur[0])**2+(centroid[1]-centroid_blur[1])**2)
+                    if region_blur.area > (LESION_MIN_AREA_RATIO*slice_area)\
+                            and could_region_be_lesion(region_blur)\
+                            and centroid_distance < (BLUR_SAME_REGION_DISTANCE_RATIO*slice_length):
                         region = region_blur
                         bbox = region_blur.bbox
                         is_lesion = 2
