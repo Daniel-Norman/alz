@@ -25,7 +25,7 @@ LESION_MIN_AREA_RATIO = 20.0 / (256*256)
 BLUR_SAME_REGION_OVERLAP = 0.50
 
 if len(sys.argv) != 4:
-    print 'Expects 2 arguments: preprocessed_image output_image output_csv'
+    print 'Expects 3 arguments: preprocessed_image output_image output_csv'
     quit()
 
 # TODO: Remove plotting part of code after done fine tuning
