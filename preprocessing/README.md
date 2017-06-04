@@ -1,6 +1,8 @@
 Performs preprocessing on the patient's MRI. Requires [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FSL) installed.
 Works in parallel on a batch of files.
 
+*Note: Please copy all scripts to the directory containing your data folders before running.*
+
 First register using
 
 `./wm_register.sh [# in parallel] [FLAIR atlas file] [WM atlas file] [MRI scan folder] [wm regsiter output folder]`
