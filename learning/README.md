@@ -3,6 +3,15 @@ This script learns to predict a patient's cognitive impairment (CI).
 
 Currently using a [Random Forest classifier from sklearn](http://scikit-learn.org/stable/modules/generated/sklearn.ensemble.RandomForestClassifier.html).
 
+Requires a filename-to-label CSV to indicate the cognitive impairment of each histogram's source patient.
+
+Example for patients 1 and 3 with cognitive impairment and patient 2 without:
+```
+histogram1.csv,1
+histogram2.csv,0
+histogram3.csv,1
+``` 
+
 Run using
 
 `python learner.py [training label CSV] [training histogram directory] [test label CSV] [test histogram directory]`
