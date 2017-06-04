@@ -5,7 +5,7 @@ Currently using a [Random Forest classifier from sklearn](http://scikit-learn.or
 
 Run using
 
-`python learner.py [training data directory] [test data directory] [histogram size]`
+`python learner.py [training label CSV] [training histogram directory] [test label CSV] [test histogram directory]`
 
 Outputs a [classification report](http://scikit-learn.org/stable/modules/generated/sklearn.metrics.classification_report.html)
 of the results.

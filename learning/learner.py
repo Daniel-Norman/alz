@@ -6,14 +6,18 @@ from os.path import isfile, join
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report
 
-if len(sys.argv) != 4:
-    print 'Expects 3 arguments: training_directory test_directory histogram_size'
+if len(sys.argv) != 5:
+    print 'Expects 4 arguments: training_label_csv training_directory test_label_csv test_directory'
     quit()
 
 print 'Running Random Forest learner on histogram data.'
-print 'Training directory: %s' % sys.argv[1]
-print 'Test directory: %s' % sys.argv[2]
-histogram_size = int(sys.argv[3])
+training_label_csv = sys.argv[1]
+training_directory = sys.argv[2]
+test_label_csv = sys.argv[3]
+test_directory = sys.argv[4]
+
+print 'Training directory: %s' % training_directory
+print 'Test directory: %s' % test_directory
 
 
 training_data = []
@@ -21,35 +25,43 @@ training_labels = []
 test_data = []
 test_labels = []
 
+
+def read_data(data, labels, label_file, directory):
+    data_index_map = {}
+    csvs = [f for f in listdir(directory) if isfile(join(directory, f))]
+    index = 0
+    for f in csvs:
+        file_path = join(directory, f)
+        with open(file_path, 'rb') as histogram_file:
+            reader = csv.reader(histogram_file)
+            hist = []
+            for i, value in enumerate(reader.next()):
+                hist.append(float(value))
+            hist = np.array(hist)
+            data.append(process_histogram(hist))
+            labels.append(0)
+            data_index_map[f] = index
+            index += 1
+    with open(label_file) as label_csv:
+        reader = csv.reader(label_csv)
+        for row in reader:
+            training_labels[data_index_map[row[0]]] = int(row[1])
+
+
+# Process the LBP histogram to convert it to the features used in training
+def process_histogram(hist):
+    # Right now, just use it directly
+    # TODO: look into converting to statistical measurements like mean/entropy/... like the paper does
+    return hist
+
 print 'Loading training data...'
-training_csvs = [join(sys.argv[1],f) for f in listdir(sys.argv[1]) if isfile(join(sys.argv[1], f))]
-for f in training_csvs:
-    with open(f, 'rb') as training_csv:
-        reader = csv.reader(training_csv)
-        label = int(reader.next()[0])
-        if label != 0:
-            label = 1
-        hist = np.empty(histogram_size)
-        for i, value in enumerate(reader.next()):
-            hist[i] = (int(value))
-        training_data.append(hist)
-        training_labels.append(label)
+read_data(training_data, training_labels, training_label_csv, training_directory)
 print '\tLoaded %s training samples.' % len(training_labels)
 
 print 'Loading test data...'
-test_csvs = [join(sys.argv[2],f) for f in listdir(sys.argv[2]) if isfile(join(sys.argv[2], f))]
-for f in test_csvs:
-    with open(f, 'rb') as test_csv:
-        reader = csv.reader(test_csv)
-        label = int(reader.next()[0])
-        if label != 0:
-            label = 1
-        hist = np.empty(histogram_size)
-        for i, value in enumerate(reader.next()):
-            hist[i] = (int(value))
-        test_data.append(hist)
-        test_labels.append(label)
+read_data(test_data, test_labels, test_label_csv, test_directory)
 print '\tLoaded %s test samples.' % len(test_labels)
+
 
 print 'Training the random forest...'
 clf = RandomForestClassifier()
