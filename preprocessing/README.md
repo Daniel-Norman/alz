@@ -2,7 +2,7 @@ Performs preprocessing on the patient's MRI. Requires [FSL](https://fsl.fmrib.ox
 
 First register using
 
-`wm_register.sh [FLAIR atlas file] [WM atlas file] [input data folder] [output folder]`
+`wm_register.sh [# to run in parallel] [FLAIR atlas file] [WM atlas file] [input data folder] [output folder]`
 
 to receive versions of the white matter atlas file, each registered to an input MRI's image space.
 
