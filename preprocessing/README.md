@@ -5,7 +5,7 @@ Works in parallel on a batch of files.
 
 First register using
 
-`./wm_register.sh [# in parallel] [FLAIR atlas file] [WM atlas file] [MRI scan folder] [wm regsiter output folder]`
+`./wm_batch_register.sh [# in parallel] [FLAIR atlas file] [WM atlas file] [MRI scan folder] [wm regsiter output folder]`
 
 to receive versions of the white matter atlas file, each registered to an input MRI's image space.
 
