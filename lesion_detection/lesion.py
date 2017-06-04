@@ -24,8 +24,8 @@ LESION_MIN_AREA_RATIO = 20.0 / (256*256)
 # E.g. same region if: distance(centroidA, centroidB) < overlap_percent * sqrt(region_area)
 BLUR_SAME_REGION_OVERLAP = 0.50
 
-if len(sys.argv) != 4:
-    print 'Expects 3 arguments: preprocessed_image output_image output_csv'
+if len(sys.argv) != 3:
+    print 'Expects 2 arguments: preprocessed_image output_csv'
     quit()
 
 # TODO: Remove plotting part of code after done fine tuning
@@ -138,11 +138,9 @@ for k in xrange(mri_data.shape[2]):
     if should_plot:
         plt.show()
 
-with open(sys.argv[3], 'wb') as lesion_csv:
+with open(sys.argv[2], 'wb') as lesion_csv:
     csv_writer = csv.writer(lesion_csv)
     for lesion in lesions:
         csv_writer.writerow(lesion)
 
-extracted_mri = nib.Nifti1Image(mri_data, [[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
-nib.save(extracted_mri, sys.argv[2])
-print 'Saved image as %s and CSV as %s.' % (sys.argv[2], sys.argv[3])
+    print 'Saved CSV of lesions as %s.' % sys.argv[2]
