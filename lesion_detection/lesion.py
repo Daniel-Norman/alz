@@ -29,7 +29,7 @@ if len(sys.argv) != 3:
     quit()
 
 # TODO: Remove plotting part of code after done fine tuning
-should_plot = True
+should_plot = False
 
 mri = nib.load(sys.argv[1])
 mri_data = mri.get_data()
