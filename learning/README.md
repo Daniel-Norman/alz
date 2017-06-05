@@ -1,3 +1,5 @@
+_TODO: more detailed instructions about how to run both_
+
 Performs machine learning on the data provided by the LBP feature extraction program.
 This script learns to predict a patient's cognitive impairment (CI).
 
