@@ -7,7 +7,7 @@ index=0
 for i in $(ls $lesion_folder);
 do
     echo "Finding lesions in $i..."
-    (python lesion.py "$lesion_folder/$i" "$output_folder/lesion$i.csv" && echo "Done. Saved as $output_folder/lesion$i.csv") &
+    (python lesion.py "$lesion_folder/$i" "$output_folder/lesions_$i.csv" && echo "Done. Saved as $output_folder/lesions_$i.csv") &
     ((index++))
     if [ $index = $parallel ]; then
         index=0
