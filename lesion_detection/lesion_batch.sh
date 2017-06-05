@@ -6,7 +6,7 @@ output_folder=$3
 index=0
 for i in $(ls $lesion_folder);
 do
-    echo "Masking $i..."
+    echo "Finding lesions in $i..."
     (python lesion.py "$lesion_folder/$i" "$output_folder/lesion$i.csv" && echo "Done. Saved as $output_folder/lesion$i.csv") &
     ((index++))
     if [ $index = $parallel ]; then
