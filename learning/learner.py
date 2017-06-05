@@ -27,9 +27,15 @@ test_labels = []
 
 
 def read_data(data, labels, label_file, directory):
-    data_index_map = {}
+    labels_per_hist = {}
     csvs = [f for f in listdir(directory) if isfile(join(directory, f))]
-    index = 0
+
+    # Load the label associated with each image
+    with open(label_file) as label_csv:
+        reader = csv.reader(label_csv)
+        for row in reader:
+            labels_per_hist[row[0]] = int(row[1])
+
     for f in csvs:
         file_path = join(directory, f)
         with open(file_path, 'rb') as histogram_file:
@@ -39,13 +45,7 @@ def read_data(data, labels, label_file, directory):
                 hist.append(float(value))
             hist = np.array(hist)
             data.append(process_histogram(hist))
-            labels.append(0)
-            data_index_map[f] = index
-            index += 1
-    with open(label_file) as label_csv:
-        reader = csv.reader(label_csv)
-        for row in reader:
-            training_labels[data_index_map[row[0]]] = int(row[1])
+            labels.append(labels_per_hist[f])
 
 
 # Process the LBP histogram to convert it to the features used in training
