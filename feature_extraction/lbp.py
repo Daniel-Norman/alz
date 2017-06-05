@@ -6,18 +6,21 @@ import matplotlib.pyplot as plt
 import copy
 from skimage import feature
 
-if len(sys.argv) != 4:
-    print 'Expects 3 arguments: registered_wm_atlas_file output_file csv_file'
-    quit()
-
 NUM_POINTS = 8
 RADIUS = 1
 EXPAND_PIXELS = 10
 
-wm_atlas = nib.load(sys.argv[1])
-wm_atlas_data = wm_atlas.get_data()
-lbp_data = wm_atlas.get_data()
-print wm_atlas_data.shape # x, y, number of slices
+if len(sys.argv) != 4:
+    print 'Expects 3 arguments: mri_file lesion_csv output_csv'
+    quit()
+
+mri_file = sys.argv[1]
+lesion_csv_file = sys.argv[2]
+output_csv_file = sys.argv[3]
+
+mri = nib.load(mri_file)
+mri_data = mri.get_data()
+print mri_data.shape # x, y, number of slices
 
 def extract_csv(input_file):
     regions_of_interest = []
@@ -73,15 +76,15 @@ def extract_image(input_arr, regions_of_interest):
 def flatten_histogram(all_hist):
     return [sum(i) / len(all_hist) for i in zip(*all_hist)]
 
-regions_of_interest = extract_csv(sys.argv[3])
+regions_of_interest = extract_csv(lesion_csv_file)
 
-all_images, all_hist = extract_image(wm_atlas_data, regions_of_interest)
+all_images, all_hist = extract_image(mri_data, regions_of_interest)
 
 flattened_hist = flatten_histogram(all_hist)
 
 print flattened_hist
 print len(all_hist)
 
-with open(sys.argv[2], 'wb') as f:
+with open(output_csv_file, 'wb') as f:
     w = csv.writer(f)
     w.writerow(flattened_hist)
