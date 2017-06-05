@@ -25,10 +25,10 @@ print mri_data.shape # x, y, number of slices
 def extract_csv(input_file):
     regions_of_interest = []
     with open(input_file, 'rb') as csvfile:
-        reader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        reader = csv.reader(csvfile)
         for row in reader:
             row_list = []
-            for number in row[0].split(","):
+            for number in row
                 row_list.append(int(number))
             regions_of_interest.append(row_list)
     return regions_of_interest
