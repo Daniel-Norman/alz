@@ -3,7 +3,7 @@ Make sure to preprocess your images first to receive a masked image with non-whi
 
 Run it in batch and parallel by doing this!
 
-`./lesion_batch.sh [# in parallel] [lesion folder] [output folder]`
+`./lesion_batch.sh [# in parallel] [preprocessed MRI folder] [output CSV folder]`
 
 Run using
 
