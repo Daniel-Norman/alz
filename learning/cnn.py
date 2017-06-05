@@ -1,9 +1,19 @@
 import tensorflow as tf
 import nibabel as nib
 import sys
+import csv
 from os import listdir
 from os.path import isfile, join
+from skimage.transform import resize
 
+
+training_directory = sys.argv[1]
+training_labels_csv = sys.argv[2]
+test_directory = sys.argv[3]
+test_labels_csv = sys.argv[4]
+
+
+# Google TensorFlow-provided CNN code:
 
 def weight_variable(shape):
     initial = tf.truncated_normal(shape, stddev=0.1)
@@ -74,42 +84,65 @@ accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
 sess.run(tf.global_variables_initializer())
 
 
-# TODO: Right now, loading a "random" 32x32 chunk for each image as its training data.
-# Eventually, this should be using chunks containing lesions (probably... ?)
+# Our code:
+
+def extract_roi_csv(input_file):
+    regions_of_interest = []
+    with open(input_file, 'rb') as csvfile:
+        reader = csv.reader(csvfile)
+        for row in reader:
+            row_list = []
+            for number in row:
+                row_list.append(int(number))
+            regions_of_interest.append(row_list)
+    return regions_of_interest
 
 
-training_images = [join(sys.argv[1], f) for f in listdir(sys.argv[1]) if isfile(join(sys.argv[1], f))]
+# For each WML region in the image, add those pixels (resized to 32x32) as a new data point with
+# the label associated with the image's patient's cognitive impairment
+def add_regions_to_data(data, labels, image, regions_of_interest, label):
+    for roi in regions_of_interest:
+        region = image[roi[1]:roi[3], roi[2]:roi[4], roi[0]]
+        data.append(resize(region, (32, 32)))
+        labels.append(label)
+
+
+def read_data(data, labels, label_file, directory):
+    labels_per_image = {}
+    images = [f for f in listdir(directory) if isfile(join(directory, f)) and not f.endswith("csv")]
+
+    # Load the label associated with each image
+    with open(label_file) as label_csv:
+        reader = csv.reader(label_csv)
+        for row in reader:
+            labels_per_image[row[0]] = int(row[1])
+
+    # For each image, load the CSV of lesion regions associated with it and add these regions to the data.
+    # Every data point for a particular image shares the same label
+    for f in images:
+        image_file = join(directory, f)
+        csv_file = join(directory, 'lesions_masked_%s.csv' % f)
+        mri = nib.load(image_file)
+        mri_data = mri.get_data()
+        regions_of_interest = extract_roi_csv(csv_file)
+        label = [1, 0] if labels_per_image[f] == 0 else [0, 1]
+        print 'Loading image %s, CSV %s, label %s' % (image_file, csv_file, label)
+        add_regions_to_data(data, labels, mri_data, regions_of_interest, label)
+
+
 training_data = []
 training_labels = []
-for f in training_images:
-    print 'Loading training image %s' % f
-    mri = nib.load(f)
-    mri_data = mri.get_data()
-    mri_shape = mri_data.shape
-    w = mri_shape[0]
-    h = mri_shape[1]
-    slices = mri_shape[2]
-    training_data.append(mri_data[w/2:w/2+32, h/2:h/2+32, slices/2])
-    # TODO: actually append the correct (one-hot formatted) label for this image
-    training_labels.append([0, 1])
+print 'Loading training data...'
+read_data(training_data, training_labels, training_labels_csv, training_directory)
+
 
 print 'Running training...'
 train_step.run(feed_dict={x: training_data, y_: training_labels, keep_prob: 0.5})
 
 
-test_images = [join(sys.argv[2], f) for f in listdir(sys.argv[2]) if isfile(join(sys.argv[2], f))]
 test_data = []
 test_labels = []
-for f in test_images:
-    print 'Loading test image %s' % f
-    mri = nib.load(f)
-    mri_data = mri.get_data()
-    mri_shape = mri_data.shape
-    w = mri_shape[0]
-    h = mri_shape[1]
-    slices = mri_shape[2]
-    test_data.append(mri_data[w/2:w/2+32, h/2:h/2+32, slices/2])
-    # TODO: actually append the correct (one-hot formatted) label for this image
-    test_labels.append([1, 0])
+print 'Loading test data...'
+read_data(test_data, test_labels, test_labels_csv, test_directory)
 
 print("Accuracy %g" % accuracy.eval(feed_dict={x: test_data, y_: test_labels, keep_prob: 1.0}))
