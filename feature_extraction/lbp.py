@@ -28,7 +28,7 @@ def extract_csv(input_file):
         reader = csv.reader(csvfile)
         for row in reader:
             row_list = []
-            for number in row
+            for number in row:
                 row_list.append(int(number))
             regions_of_interest.append(row_list)
     return regions_of_interest
