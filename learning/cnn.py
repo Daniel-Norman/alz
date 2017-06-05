@@ -6,11 +6,10 @@ from os import listdir
 from os.path import isfile, join
 from skimage.transform import resize
 
-
-training_directory = sys.argv[1]
-training_labels_csv = sys.argv[2]
-test_directory = sys.argv[3]
-test_labels_csv = sys.argv[4]
+training_labels_csv = sys.argv[1]
+training_directory = sys.argv[2]
+test_labels_csv = sys.argv[3]
+test_directory = sys.argv[4]
 
 
 # Google TensorFlow-provided CNN code:
