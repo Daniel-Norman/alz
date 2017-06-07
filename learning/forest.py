@@ -73,6 +73,8 @@ def train_model(n_iterations, data, labels):
         # Use cross validation to assess the performance of this classifier, needed because of the small data set.
         # Cross validation allows us to validate the performance against multiple groupings of test data, all while
         # maintaining the requirement that a model is never evaluated on data is has seen during training.
+        # Use a Stratified Shuffle Split to randomly chose your test data while trying to maintain an equal proportion
+        # of test samples with and without Alzheimer's.
         scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5), scoring='f1_macro')
         # Report F1 score, as it is a better overall measure of performance compared to just accuracy
         max_f1 = max(scores.mean(), max_f1)
