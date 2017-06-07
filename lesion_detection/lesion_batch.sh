@@ -1,13 +1,13 @@
 #!/bin/bash
 
 parallel=$1
-lesion_folder=$2
+masked_input_folder=$2
 output_folder=$3
 index=0
-for i in $(ls $lesion_folder);
+for i in $(ls $masked_input_folder);
 do
     echo "Finding lesions in $i..."
-    (python lesion.py "$lesion_folder/$i" "$output_folder/lesions_$i.csv" && echo "Done. Saved as $output_folder/lesions_$i.csv") &
+    (python lesion.py "$masked_input_folder/$i" "$output_folder/lesions_$i.csv") &
     ((index++))
     if [ $index = $parallel ]; then
         index=0
