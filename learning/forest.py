@@ -1,11 +1,12 @@
 import csv
 import numpy as np
 import sys
+import random
 from os import listdir
 from os.path import isfile, join
 from scipy.stats import entropy
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit, ShuffleSplit, StratifiedKFold
 from sklearn.model_selection import cross_val_score
 
 
@@ -24,7 +25,7 @@ def setup_labels(label_file):
     return labels_per_hist
 
 
-def read_data(labels_per_hist, directory):
+def read_data(labels_per_file, directory):
     data = []
     labels = []
 
@@ -39,7 +40,7 @@ def read_data(labels_per_hist, directory):
                 hist.append(float(value))
             hist = np.array(hist)
             data.append(process_histogram(hist))
-            labels.append(labels_per_hist[f])
+            labels.append(labels_per_file[f])
 
     return data, labels
 
@@ -64,34 +65,42 @@ def process_histogram(hist):
 def train_model(n_iterations, data, labels):
     print 'Training an AdaBoost(RandomForest) model %s times...' % n_iterations
     max_f1 = 0.0
+    max_f1_std = 0.0
     max_clf = None
     for i in xrange(n_iterations):
         # Use AdaBoost to combine base classifiers, weighing incorrectly-predicted samples heavily as time goes on.
         # Use a RandomForest classifier, to build decision trees that select on some set of features that seem to
         # best describe the data.
-        clf = AdaBoostClassifier(base_estimator=RandomForestClassifier(), n_estimators=10)
+        clf = AdaBoostClassifier(
+            base_estimator=RandomForestClassifier(random_state=random.randint(0, 2**32)),
+            random_state=random.randint(0, 2**32),
+            n_estimators=10)
         # Use cross validation to assess the performance of this classifier, needed because of the small data set.
         # Cross validation allows us to validate the performance against multiple groupings of test data, all while
         # maintaining the requirement that a model is never evaluated on data is has seen during training.
         # Use a Stratified Shuffle Split to randomly chose your test data while trying to maintain an equal proportion
         # of test samples with and without Alzheimer's.
-        scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5), scoring='f1_macro')
+        scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=20), scoring='f1_macro')
         # Report F1 score, as it is a better overall measure of performance compared to just accuracy
-        max_f1 = max(scores.mean(), max_f1)
-        average_f1 = scores.mean()
-        if average_f1 > max_f1:
-            max_f1 = average_f1
+        average = scores.mean()
+        std = scores.std()
+        if average - 2*std > max_f1 - 2*max_f1_std:
+            max_f1 = average
             max_clf = clf
-        if i % (n_iterations/10) == 0:
-            print 'Done with iteration %i. Best model so far has F1=%s' % (i, max_f1)
-    return max_clf, max_f1
+            max_f1_std = std
+        if i % max(1, (n_iterations/10)) == 0:
+            print 'Done with iteration %i. Best model so far has F1= %s (+/- %s)' % (i, max_f1, 2*max_f1_std)
+    return max_clf, max_f1, max_f1_std
 
 
 print 'Setting up labels...'
 label_map = setup_labels(label_file=sys.argv[2])
 print 'Loading data...'
-data, labels = read_data(labels_per_hist=label_map, directory=sys.argv[3])
+data, labels = read_data(labels_per_file=label_map, directory=sys.argv[3])
 print 'Loaded %s samples.' % len(data)
 
-best_clf, best_f1 = train_model(n_iterations=int(sys.argv[1]), data=data, labels=labels)
-print 'Max F1 score achieved: %s' % best_f1
+best_clf, best_f1, best_f1_std = train_model(n_iterations=int(sys.argv[1]), data=data, labels=labels)
+print 'Max F1 score achieved: %s (+/- %s)' % (best_f1, 2*best_f1_std)
+print 'Using model:\n%s' % best_clf
+scores = cross_val_score(best_clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=100), scoring='f1_macro')
+print scores.mean()
