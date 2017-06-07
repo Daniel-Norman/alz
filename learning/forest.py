@@ -3,27 +3,15 @@ import numpy as np
 import sys
 from os import listdir
 from os.path import isfile, join
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import classification_report
 from scipy.stats import entropy
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import cross_val_score
+
 
 if len(sys.argv) != 4:
-    print 'Expects 3 arguments: label_csv training_directory test_directory'
+    print 'Expects 3 arguments: n_iterations label_csv histogram_directory'
     quit()
-
-print 'Running Random Forest learner on histogram data.'
-label_csv = sys.argv[1]
-training_directory = sys.argv[2]
-test_directory = sys.argv[3]
-
-print 'Training directory: %s' % training_directory
-print 'Test directory: %s' % test_directory
-
-
-training_data = []
-training_labels = []
-test_data = []
-test_labels = []
 
 
 # Load the label associated with each image
@@ -36,7 +24,10 @@ def setup_labels(label_file):
     return labels_per_hist
 
 
-def read_data(data, labels, labels_per_hist, directory):
+def read_data(labels_per_hist, directory):
+    data = []
+    labels = []
+
     csvs = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.csv')]
 
     for f in csvs:
@@ -50,6 +41,8 @@ def read_data(data, labels, labels_per_hist, directory):
             data.append(process_histogram(hist))
             labels.append(labels_per_hist[f])
 
+    return data, labels
+
 
 # Process the LBP histogram to convert it to the features used in training
 def process_histogram(hist):
@@ -60,27 +53,43 @@ def process_histogram(hist):
             built_data.append(i)
 
     features = [
+        # TODO: entropy
+        # TODO: other stuff that doesn't come from histogram, like (total lesion volume / image volume)?
         np.std(built_data), np.mean(built_data), np.median(built_data), entropy(built_data),
         np.std(hist), np.mean(hist), np.median(hist), entropy(hist),
     ]
     return features
 
+
+def train_model(n_iterations, data, labels):
+    print 'Training an AdaBoost(RandomForest) model %s times...' % n_iterations
+    max_f1 = 0.0
+    max_clf = None
+    for i in xrange(n_iterations):
+        # Use AdaBoost to combine base classifiers, weighing incorrectly-predicted samples heavily as time goes on.
+        # Use a RandomForest classifier, to build decision trees that select on some set of features that seem to
+        # best describe the data.
+        clf = AdaBoostClassifier(base_estimator=RandomForestClassifier(), n_estimators=10)
+        # Use cross validation to assess the performance of this classifier, needed because of the small data set.
+        # Cross validation allows us to validate the performance against multiple groupings of test data, all while
+        # maintaining the requirement that a model is never evaluated on data is has seen during training.
+        scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5), scoring='f1_macro')
+        # Report F1 score, as it is a better overall measure of performance compared to just accuracy
+        max_f1 = max(scores.mean(), max_f1)
+        average_f1 = scores.mean()
+        if average_f1 > max_f1:
+            max_f1 = average_f1
+            max_clf = clf
+        if i % (n_iterations/10) == 0:
+            print 'Done with iteration %i. Best model so far has F1=%s' % (i, max_f1)
+    return max_clf, max_f1
+
+
 print 'Setting up labels...'
-labels_per_histogram = setup_labels(label_csv)
+label_map = setup_labels(label_file=sys.argv[2])
+print 'Loading data...'
+data, labels = read_data(labels_per_hist=label_map, directory=sys.argv[3])
+print 'Loaded %s samples.' % len(data)
 
-print 'Loading training data...'
-read_data(training_data, training_labels, labels_per_histogram, training_directory)
-print '\tLoaded %s training samples.' % len(training_labels)
-
-print 'Loading test data...'
-read_data(test_data, test_labels, labels_per_histogram, test_directory)
-print '\tLoaded %s test samples.' % len(test_labels)
-
-
-print 'Training the random forest...'
-clf = RandomForestClassifier(n_estimators=20)
-clf.fit(training_data, training_labels)
-
-print '\nPerformance of classifier on test data:'
-predicted_labels = clf.predict(test_data)
-print classification_report(test_labels, predicted_labels, target_names=['No CI', 'CI'])
+best_clf, best_f1 = train_model(n_iterations=int(sys.argv[1]), data=data, labels=labels)
+print 'Max F1 score achieved: %s' % best_f1
