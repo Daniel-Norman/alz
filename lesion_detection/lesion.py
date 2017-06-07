@@ -69,6 +69,7 @@ threshold(mri_data)
 threshold(mri_data_blur)
 
 lesions = []
+total_lesion_volume = 0.0
 
 # Find lesions using image segmentation and labeling
 for k in xrange(mri_data.shape[2]):
@@ -107,6 +108,7 @@ for k in xrange(mri_data.shape[2]):
         if region.area > (LESION_MIN_AREA_RATIO*slice_area):
             if could_region_be_lesion(region):
                 is_lesion = 1
+                total_lesion_volume += region.area
             else:
                 # If the region in original image was thought to not be a lesion, double check with the blurred
                 # version. The blurred image's lesions may like this specific region, because blurring gets
@@ -120,6 +122,7 @@ for k in xrange(mri_data.shape[2]):
                         region = region_blur
                         bbox = region_blur.bbox
                         is_lesion = 2
+                        total_lesion_volume += region_blur.area
                         break
 
             if is_lesion != 0:
@@ -138,9 +141,18 @@ for k in xrange(mri_data.shape[2]):
     if should_plot:
         plt.show()
 
-with open(sys.argv[2], 'wb') as lesion_csv:
+output_filename = sys.argv[2].replace('masked_', '').replace('.nii', '')
+
+with open(output_filename, 'wb') as lesion_csv:
     csv_writer = csv.writer(lesion_csv)
     for lesion in lesions:
         csv_writer.writerow(lesion)
 
-    print 'Saved CSV of lesions as %s.' % sys.argv[2]
+    print 'Saved CSV of lesions as %s.' % output_filename
+
+output_filename = output_filename.replace('lesions_', 'lesions_volume_')
+with open(output_filename, 'wb') as lesion_volume_csv:
+    lesion_volume_ratio = total_lesion_volume / (mri_data.shape[0]*mri_data.shape[1]*mri_data.shape[2])
+    csv_writer = csv.writer(lesion_volume_csv)
+    csv_writer.writerow([lesion_volume_ratio])
+    print 'Saved CSV of lesion volume as %s.' % output_filename
