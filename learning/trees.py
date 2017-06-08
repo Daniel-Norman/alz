@@ -5,7 +5,7 @@ import random
 from os import listdir
 from os.path import isfile, join
 from scipy.stats import entropy
-from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.ensemble import AdaBoostClassifier, ExtraTreesClassifier
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.model_selection import cross_val_score
 
@@ -55,19 +55,24 @@ def read_data(labels_per_file, directory):
 
 # Process the LBP histogram to convert it to the features used in training
 def process_histogram(hist, volume):
-    # # Generate data that could have generated this histogram, to be used as a possible feature
-    # built_data = []
-    # for i, value in enumerate(hist):
-    #     for _ in xrange(int(value*1000)):
-    #         built_data.append(i)
+    # Generate data that could have generated this histogram, to be used as a possible feature
+    built_data = []
+    for i, value in enumerate(hist):
+        for _ in xrange(int(value*1000)):
+            built_data.append(i)
 
     features = [
         volume,
-        # np.std(built_data), np.mean(built_data), np.median(built_data), entropy(built_data),
+        np.std(built_data), np.mean(built_data), np.median(built_data), entropy(built_data),
         np.std(hist), np.mean(hist), np.median(hist), entropy(hist),
     ]
 
-    return features
+    combined_features = []
+    for feature_a in features:
+        for feature_b in features:
+            combined_features.append(feature_a * feature_b)
+
+    return combined_features
 
 
 def train_model(n_iterations, data, labels):
@@ -75,12 +80,13 @@ def train_model(n_iterations, data, labels):
     max_f1 = 0.0
     max_f1_std = 0.0
     max_clf = None
+    printing_interval = max(1, min(n_iterations/10, 10))
     for i in xrange(n_iterations):
         # Use AdaBoost to combine base classifiers, weighing incorrectly-predicted samples heavily as time goes on.
-        # Use a RandomForest classifier, to build decision trees that select on some set of features that seem to
+        # Use an ExtraTrees classifier, to build decision trees that select on some set of features that seem to
         # best describe the data.
         clf = AdaBoostClassifier(
-            base_estimator=RandomForestClassifier(random_state=random.randint(0, 2**32)),
+            base_estimator=ExtraTreesClassifier(random_state=random.randint(0, 2**32)),
             random_state=random.randint(0, 2**32),
             n_estimators=10
         )
@@ -97,8 +103,8 @@ def train_model(n_iterations, data, labels):
             max_f1 = average
             max_clf = clf
             max_f1_std = std
-        if i % max(1, (n_iterations/10)) == 0:
-            print 'Done with iteration %i. Best model so far has F1= %s (+/- %s)' % (i, max_f1, 2*max_f1_std)
+        if i % printing_interval == 0:
+            print 'Done with iteration %i. Best model so far has F1= %.4f (+/- %.4f)' % (i, max_f1, 2*max_f1_std)
     return max_clf, max_f1, max_f1_std
 
 
@@ -109,8 +115,8 @@ data, labels = read_data(labels_per_file=label_map, directory=sys.argv[3])
 print 'Loaded %s samples.' % len(data)
 
 best_clf, best_f1, best_f1_std = train_model(n_iterations=int(sys.argv[1]), data=data, labels=labels)
-print 'Max F1 score achieved: %s (+/- %s)' % (best_f1, 2*best_f1_std)
+print 'Max F1 score achieved: %.4f (+/- %.4f)' % (best_f1, 2*best_f1_std)
 print 'Using model:\n%s' % best_clf
 print 'Evaluating model one last time using 100-split cross validation...'
 scores = cross_val_score(best_clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=100), scoring='f1_macro')
-print 'F1: %s (+/- %s)' % (scores.mean(), 2*scores.std())
+print 'F1: %.4f (+/- %.4f)' % (scores.mean(), 2*scores.std())
