@@ -32,7 +32,7 @@ def read_data(labels_per_file, directory):
     data = []
     labels = []
 
-    hist_csvs = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.csv') and "volume" not in f]
+    hist_csvs = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.csv') and "histogram" in f]
 
     for f in hist_csvs:
         file_path = join(directory, f)
@@ -76,7 +76,7 @@ def process_histogram(hist, volume):
 
 
 def train_model(n_iterations, data, labels):
-    print 'Training an AdaBoost(RandomForest) model %s times with 30-split cross validation...' % n_iterations
+    print 'Training an AdaBoost(ExtraTrees) model %s times with 30-split cross validation...' % n_iterations
     max_f1 = 0.0
     max_f1_std = 0.0
     max_clf = None
@@ -95,7 +95,7 @@ def train_model(n_iterations, data, labels):
         # maintaining the requirement that a model is never evaluated on data is has seen during training.
         # Use a Stratified Shuffle Split to randomly chose 5 points as test data while trying to maintain an equal
         # proportion of test samples with and without Alzheimer's. Perform this CV 30 times.
-        scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=30), scoring='f1_macro')
+        scores = cross_val_score(clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=30), scoring='roc_auc')
         # Report F1 score, as it is a better overall measure of performance compared to just accuracy
         average = scores.mean()
         std = scores.std()
@@ -104,7 +104,7 @@ def train_model(n_iterations, data, labels):
             max_clf = clf
             max_f1_std = std
         if i % printing_interval == 0:
-            print 'Done with iteration %i. Best model so far has F1= %.4f (+/- %.4f)' % (i, max_f1, 2*max_f1_std)
+            print 'Done with iteration %i. Best model so far has AUC = %.4f (+/- %.4f)' % (i, max_f1, 2*max_f1_std)
     return max_clf, max_f1, max_f1_std
 
 
@@ -112,11 +112,11 @@ print 'Setting up labels...'
 label_map = setup_labels(label_file=sys.argv[2])
 print 'Loading data...'
 data, labels = read_data(labels_per_file=label_map, directory=sys.argv[3])
-print 'Loaded %s samples.' % len(data)
+print 'Loaded %s samples (%s with AD).' % (len(labels), len(filter(lambda x: x == 1, labels)))
 
 best_clf, best_f1, best_f1_std = train_model(n_iterations=int(sys.argv[1]), data=data, labels=labels)
-print 'Max F1 score achieved: %.4f (+/- %.4f)' % (best_f1, 2*best_f1_std)
+print 'Max AUC achieved: %.4f (+/- %.4f)' % (best_f1, 2*best_f1_std)
 print 'Using model:\n%s' % best_clf
 print 'Evaluating model one last time using 100-split cross validation...'
-scores = cross_val_score(best_clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=100), scoring='f1_macro')
-print 'F1: %.4f (+/- %.4f)' % (scores.mean(), 2*scores.std())
+scores = cross_val_score(best_clf, data, labels, cv=StratifiedShuffleSplit(test_size=5, n_splits=100), scoring='roc_auc')
+print 'AUC = %.4f (+/- %.4f)' % (scores.mean(), 2*scores.std())
