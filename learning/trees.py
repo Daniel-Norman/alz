@@ -32,7 +32,7 @@ def read_data(labels_per_file, directory):
     data = []
     labels = []
 
-    hist_csvs = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.csv') and "area" not in f]
+    hist_csvs = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.csv') and "volume" not in f]
 
     for f in hist_csvs:
         file_path = join(directory, f)
