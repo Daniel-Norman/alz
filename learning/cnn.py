@@ -2,15 +2,15 @@ import tensorflow as tf
 import nibabel as nib
 import sys
 import csv
+import random
+import numpy as np
 from os import listdir
 from os.path import isfile, join
 from skimage.transform import resize
 
-training_labels_csv = sys.argv[1]
-training_directory = sys.argv[2]
-test_labels_csv = sys.argv[3]
-test_directory = sys.argv[4]
-
+if len(sys.argv) != 4:
+    print 'Expects 3 arguments: n_iterations label_csv data_directory'
+    quit()
 
 # Google TensorFlow-provided CNN code:
 
@@ -85,63 +85,104 @@ sess.run(tf.global_variables_initializer())
 
 # Our code:
 
-def extract_roi_csv(input_file):
-    regions_of_interest = []
-    with open(input_file, 'rb') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            row_list = []
-            for number in row:
-                row_list.append(int(number))
-            regions_of_interest.append(row_list)
-    return regions_of_interest
-
-
 # For each WML region in the image, add those pixels (resized to 32x32) as a new data point with
 # the label associated with the image's patient's cognitive impairment
-def add_regions_to_data(data, labels, image, regions_of_interest, label):
-    for roi in regions_of_interest:
-        region = image[roi[1]:roi[3], roi[2]:roi[4], roi[0]]
-        data.append(resize(region, (32, 32)))
-        labels.append(label)
+def extract_roi_from_csv(lesions_csv, image, label):
+    data = []
+    labels = []
 
-
-def read_data(data, labels, label_file, directory):
-    labels_per_image = {}
-    images = [f for f in listdir(directory) if isfile(join(directory, f)) and not f.endswith("csv")]
-
-    # Load the label associated with each image
-    with open(label_file) as label_csv:
-        reader = csv.reader(label_csv)
+    with open(lesions_csv, 'rb') as csvfile:
+        reader = csv.reader(csvfile)
         for row in reader:
-            labels_per_image[row[0]] = int(row[1])
+            roi = []
+            for number in row:
+                roi.append(int(number))
+            region = image[roi[1]:roi[3], roi[2]:roi[4], roi[0]]
+            data.append(resize(region, (32, 32)))
+            labels.append(label)
+    return data, labels
 
-    # For each image, load the CSV of lesion regions associated with it and add these regions to the data.
-    # Every data point for a particular image shares the same label
+
+# Load the label associated with each image
+def setup_labels(label_file):
+    labels_per_hist = {}
+    with open(label_file) as lbl_csv:
+        reader = csv.reader(lbl_csv)
+        for row in reader:
+            labels_per_hist[row[0]] = int(row[1])
+    return labels_per_hist
+
+
+def read_data(labels_per_file, directory):
+    training_data = []
+    training_labels = []
+    test_data = []
+    test_labels = []
+
+    data = []
+    labels = []
+
+    images = [f for f in listdir(directory) if isfile(join(directory, f)) and f.endswith('.nii')]
+
     for f in images:
+        sample_number = f.replace('.nii', '')
+        if sample_number not in labels_per_file:
+            continue
+
         image_file = join(directory, f)
-        csv_file = join(directory, 'lesions_masked_%s.csv' % f)
         mri = nib.load(image_file)
         mri_data = mri.get_data()
-        regions_of_interest = extract_roi_csv(csv_file)
-        label = [1, 0] if labels_per_image[f] == 0 else [0, 1]
-        print 'Loading image %s, CSV %s, label %s' % (image_file, csv_file, label)
-        add_regions_to_data(data, labels, mri_data, regions_of_interest, label)
+        lesions_file = join(directory, 'lesions_%s.csv' % f.replace('.nii', ''))
+        label = labels_per_file[sample_number]
+        d, l = extract_roi_from_csv(lesions_file, mri_data, [0, 1] if label == 0 else [1, 0])
 
+        if random.random() < 0.2:
+            test_data.extend(d)
+            test_labels.extend(l)
+        else:
+            training_data.extend(d)
+            training_labels.extend(l)
 
-training_data = []
-training_labels = []
-print 'Loading training data...'
-read_data(training_data, training_labels, training_labels_csv, training_directory)
+        data.extend(d)
+        labels.extend(l)
 
+    return data, labels
 
-print 'Running training...'
-train_step.run(feed_dict={x: training_data, y_: training_labels, keep_prob: 0.5})
+    #return training_data, training_labels, test_data, test_labels
 
+print 'Setting up labels...'
+label_map = setup_labels(sys.argv[2])
 
-test_data = []
-test_labels = []
-print 'Loading test data...'
-read_data(test_data, test_labels, test_labels_csv, test_directory)
+print 'Loading data...'
+data, labels = read_data(labels_per_file=label_map, directory=sys.argv[3])
+print 'Loaded %s lesion images.' % len(labels)
+accuracies = []
 
-print("Accuracy %g" % accuracy.eval(feed_dict={x: test_data, y_: test_labels, keep_prob: 1.0}))
+for i in xrange(int(sys.argv[1])):
+    sess = tf.InteractiveSession()
+    sess.run(tf.global_variables_initializer())
+
+    training_data = []
+    training_labels = []
+    test_data = []
+    test_labels = []
+
+    for j in xrange(len(labels)):
+        if random.random() < 0.2:
+            test_data.append(data[j])
+            test_labels.append(labels[j])
+        else:
+            training_data.append(data[j])
+            training_labels.append(labels[j])
+
+    # print 'Loaded %s test samples and %s test samples.' % (len(training_labels), len(test_labels))
+
+    print 'Running training iteration %s...' % i
+    train_step.run(feed_dict={x: training_data, y_: training_labels, keep_prob: 0.5})
+
+    accuracies.append(accuracy.eval(feed_dict={x: test_data, y_: test_labels, keep_prob: 1.0}))
+    print 'Average accuracy: %.4f (+/- %.4f)' % (np.array(accuracies).mean(), 2 * np.array(accuracies).std())
+    # print("Accuracy %g" % )
+
+accuracies = np.array(accuracies)
+print 'Average accuracy: %.4f (+/- %.4f)' % (accuracies.mean(), 2*accuracies.std())
