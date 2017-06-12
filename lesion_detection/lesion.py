@@ -80,7 +80,7 @@ for k in xrange(mri_data.shape[2]):
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.set_axis_off()
         plt.tight_layout()
-        ax.imshow(image)
+        ax.imshow(image, cmap='gray')
 
     # Perform image segmentation/labeling
     try:
