@@ -1,5 +1,6 @@
 Performs preprocessing on the patient's MRI. Requires [FSL](https://fsl.fmrib.ox.ac.uk/fsl/fslwiki/FSL) installed.
 Works in parallel on a batch of files.
+We used the 1.0mm FLAIR and WM atlas files from [Brainder](https://brainder.org/download/flair/).
 
 *Note: Please copy all scripts to the directory containing your data folders before running.*
 
