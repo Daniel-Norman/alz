@@ -1,7 +1,4 @@
-_TODO: more detailed instructions about how to run both_
-
 Performs machine learning on the data provided by the LBP feature extraction program.
-This script learns to predict a patient's presence of Alzheimer's Disease.
 
 ### AdaBoost + Extra Trees
 Uses [AdaBoost](http://scikit-learn.org/stable/modules/generated/sklearn.ensemble.AdaBoostClassifier.html) with [Extra Trees](http://scikit-learn.org/stable/modules/generated/sklearn.ensemble.ExtraTreesClassifier.html) base classifiers.
@@ -30,16 +27,12 @@ Run using
 ### CNN
 Uses a convolutional neural network from [TensorFlow](https://www.tensorflow.org/).
 
-Also requires a filename-to-label CSV to indicate the cognitive impairment of each histogram's source patient.
-Example for patients 1 and 3 with cognitive impairment and patient 2 without:
-```
-flair1.nii,1
-flair2.nii,0
-flair3.nii,1
-``` 
+Also requires a patient-to-Alz CSV like in the above script.
+
+Data directory should contain two files for each patient: their original .nii scan file, and the lesion bounding box CSV provided by the lesion detection script.
 
 Run using
 
-`python cnn.py [training label CSV] [training histogram directory] [test label CSV] [test histogram directory]`
+`python cnn.py [number of iterations] [label csv] [data directory]`
 
 Outputs the accuracy of the model.
